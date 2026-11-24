@@ -140,6 +140,9 @@
     <Compile Include="Events\RailEvent.cs" />
     <Compile Include="Events\RemoveEvent.cs" />
     <Compile Include="Events\RevertEvent.cs" />
+    <Compile Include="Systems\QuickLoad\QuickLoadEvents.cs" />
+    <Compile Include="Systems\QuickLoad\QuickLoadSnapshot.cs" />
+    <Compile Include="Systems\QuickLoad\QuickLoadSystem.cs" />
     <Compile Include="Events\SpectateEvent.cs" />
     <Compile Include="Events\StrategyEvent.cs" />
     <Compile Include="Events\TrackingEvent.cs" />

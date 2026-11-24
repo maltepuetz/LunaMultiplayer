@@ -24,5 +24,16 @@
         public string CannotLoadGames { get; set; } = "LMP does not allow loading savegames";
         public string KerbalNotYours { get; set; } = "Another player is using this kerbal";
         public string UnsafeToSync { get; set; } = "Cannot sync while in unstable orbit or spectating as you might crash! You can turn off this check in settings";
+        public string QuickSaved { get; set; } = "Quicksaved (multiplayer)";
+        public string QuickLoaded { get; set; } = "Quickloaded: you are now in an earlier subspace";
+        public string QuickSaveNotOwnVessel { get; set; } = "Cannot quicksave: you are not controlling this vessel";
+        public string QuickSaveEva { get; set; } = "Cannot quicksave a kerbal on EVA";
+        public string QuickLoadNoSnapshot { get; set; } = "No multiplayer quicksave to load";
+        public string QuickLoadSpectating { get; set; } = "Cannot quickload while spectating";
+        public string QuickLoadWarping { get; set; } = "Cannot quickload while warping";
+        public string QuickLoadLocked { get; set; } = "Cannot quickload: another player controls part of your vessel";
+        public string QuickLoadDocked { get; set; } = "Cannot quickload: your vessel docked with another vessel since the quicksave";
+        public string QuickLoadCrewChanged { get; set; } = "Cannot quickload: crew moved to or from another vessel since the quicksave";
+        public string QuickLoadTooOld { get; set; } = "Cannot quickload: the quicksave is too old for this server";
     }
 }

@@ -19,6 +19,8 @@ namespace Server.Message
 
             var msgData = ServerContext.ServerMessageFactory.CreateNewMessageData<SettingsReplyMsgData>();
             msgData.WarpMode = WarpSettings.SettingsStore.WarpMode;
+            msgData.AllowQuickLoad = WarpSettings.SettingsStore.AllowQuickLoad;
+            msgData.QuickLoadMaxRewindMinutes = WarpSettings.SettingsStore.QuickLoadMaxRewindMinutes;
             msgData.GameMode = GeneralSettings.SettingsStore.GameMode;
             msgData.TerrainQuality = GeneralSettings.SettingsStore.TerrainQuality;
             msgData.AllowCheats = GeneralSettings.SettingsStore.Cheats;

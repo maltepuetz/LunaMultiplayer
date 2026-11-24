@@ -12,6 +12,8 @@ namespace LmpCommon.Message.Data.Settings
         public override SettingsMessageType SettingsMessageType => SettingsMessageType.Reply;
 
         public WarpMode WarpMode;
+        public bool AllowQuickLoad;
+        public int QuickLoadMaxRewindMinutes;
         public GameMode GameMode;
         public TerrainQuality TerrainQuality;
         public bool AllowCheats;
@@ -77,6 +79,8 @@ namespace LmpCommon.Message.Data.Settings
             base.InternalSerialize(lidgrenMsg);
 
             lidgrenMsg.Write((int)WarpMode);
+            lidgrenMsg.Write(AllowQuickLoad);
+            lidgrenMsg.Write(QuickLoadMaxRewindMinutes);
             lidgrenMsg.Write((int)GameMode);
             lidgrenMsg.Write((int)TerrainQuality);
             lidgrenMsg.Write(AllowCheats);
@@ -141,6 +145,8 @@ namespace LmpCommon.Message.Data.Settings
             base.InternalDeserialize(lidgrenMsg);
 
             WarpMode = (WarpMode)lidgrenMsg.ReadInt32();
+            AllowQuickLoad = lidgrenMsg.ReadBoolean();
+            QuickLoadMaxRewindMinutes = lidgrenMsg.ReadInt32();
             GameMode = (GameMode)lidgrenMsg.ReadInt32();
             TerrainQuality = (TerrainQuality)lidgrenMsg.ReadInt32();
             AllowCheats = lidgrenMsg.ReadBoolean();
@@ -203,7 +209,7 @@ namespace LmpCommon.Message.Data.Settings
         internal override int InternalGetMessageSize()
         {
             return base.InternalGetMessageSize() + sizeof(WarpMode) + sizeof(GameMode) + sizeof(TerrainQuality) + sizeof(GameDifficulty) +
-                sizeof(bool) * 24 + sizeof(int) * 9 + sizeof(float) * 19 + ConsoleIdentifier.GetByteCount();
+                sizeof(bool) * 25 + sizeof(int) * 10 + sizeof(float) * 19 + ConsoleIdentifier.GetByteCount();
         }
     }
 }

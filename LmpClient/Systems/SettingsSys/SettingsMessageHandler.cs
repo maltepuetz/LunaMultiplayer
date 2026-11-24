@@ -17,6 +17,8 @@ namespace LmpClient.Systems.SettingsSys
             if (!(msg.Data is SettingsReplyMsgData msgData)) return;
 
             SettingsSystem.ServerSettings.WarpMode = msgData.WarpMode;
+            SettingsSystem.ServerSettings.AllowQuickLoad = msgData.AllowQuickLoad;
+            SettingsSystem.ServerSettings.QuickLoadMaxRewindMinutes = msgData.QuickLoadMaxRewindMinutes;
             SettingsSystem.ServerSettings.GameMode = msgData.GameMode;
             SettingsSystem.ServerSettings.TerrainQuality = msgData.TerrainQuality;
             SettingsSystem.ServerSettings.AllowCheats = msgData.AllowCheats;

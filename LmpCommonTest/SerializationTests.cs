@@ -2,7 +2,10 @@
 using LmpCommon.Message;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.Chat;
+using LmpCommon.Enums;
 using LmpCommon.Message.Data.Kerbal;
+using LmpCommon.Message.Data.Settings;
+using LmpCommon.Message.Server;
 using LmpCommon.Message.Data.Vessel;
 using LmpCommon.Xml;
 using LmpCommonTest.Properties;
@@ -121,6 +124,37 @@ namespace LmpCommonTest
                     throw new AggregateException("Serialize failed under parallel load", ex);
                 }
             });
+        }
+
+        [TestMethod]
+        public void SettingsReply_RoundTripsQuickLoadSettings()
+        {
+            var msgData = Factory.CreateNewMessageData<SettingsReplyMsgData>();
+            msgData.WarpMode = WarpMode.Subspace;
+            msgData.ConsoleIdentifier = "x";
+            msgData.AllowQuickLoad = true;
+            msgData.QuickLoadMaxRewindMinutes = 45;
+
+            var msg = Factory.CreateNew<SetingsSrvMsg>(msgData);
+
+            var expectedDataSize = msg.GetMessageSize();
+            var lidgrenMsgSend = Client.CreateMessage(expectedDataSize);
+            msg.Serialize(lidgrenMsgSend);
+            Assert.IsTrue(expectedDataSize >= lidgrenMsgSend.LengthBytes);
+
+            var data = lidgrenMsgSend.ReadBytes(lidgrenMsgSend.LengthBytes);
+            var lidgrenMsgRecv = Client.CreateIncomingMessage(NetIncomingMessageType.Data, data);
+            lidgrenMsgRecv.LengthBytes = lidgrenMsgSend.LengthBytes;
+
+            msg.Recycle();
+
+            var msgDes = Factory.Deserialize(lidgrenMsgRecv, Environment.TickCount);
+            var result = (SettingsReplyMsgData)msgDes.Data;
+
+            Assert.IsTrue(result.AllowQuickLoad);
+            Assert.AreEqual(45, result.QuickLoadMaxRewindMinutes);
+            Assert.AreEqual(WarpMode.Subspace, result.WarpMode);
+            Assert.AreEqual("x", result.ConsoleIdentifier);
         }
 
         [TestMethod]

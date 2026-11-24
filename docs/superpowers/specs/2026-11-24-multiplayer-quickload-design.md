@@ -130,17 +130,21 @@ or terminated.
 
 ### F5
 
-Harmony postfix on `QuickSaveLoad.quickSave`. Stock runs unchanged (it still
-writes its local file, which nothing reads). If stock considered the game
-clear to save, and the player is not spectating and holds the control lock of
-the active vessel, take the snapshot and show "Quicksaved (multiplayer)".
-Otherwise show why not.
+`QuickLoadSystem` listens to the stock event `GameEvents.onGameAboutToQuicksave`,
+which stock fires only once it has accepted a quicksave. Stock runs unchanged
+(it still writes its local file, which nothing reads). If the player is not
+spectating, holds the control lock of the active vessel and is not on EVA,
+the snapshot is taken and "Quicksaved (multiplayer)" is shown. Otherwise the
+reason is shown.
 
 ### F9
 
-The existing prefix in `QuickSaveLoad_QuickLoad.cs` calls
-`QuickLoadSystem.TryQuickLoad()` instead of only showing the refusal. Stock
-quickload never runs while connected.
+Stock never calls its quickload while `Flight.CanQuickLoad` is false; it only
+shows a "disabled" message. So while the feature is enabled `QuickLoadSystem`
+holds an input lock on stock's quickload key handling and reads the key
+itself. As in stock, F9 must be held for a second. `CanQuickLoad` stays
+false, so Alt+F9 and the pause-menu load button remain blocked. With the
+feature off nothing is locked and F9 behaves as today.
 
 Refuse, with a screen message naming the reason, when:
 
@@ -163,15 +167,15 @@ Otherwise:
    is sent. The client ends up alone in a subspace at the snapshot time.
    The server accepts this today and is not changed, so there is no
    rejection case to handle.
-2. **Swap the vessels.** Remove every family vessel that still
-   exists, locally and on the server, all kill-listed. Load the snapshot
-   under a fresh vessel id through `VesselLoader.LoadVessel`, make it the
-   active vessel, and send it with
-   `VesselProtoSystem.MessageSender.SendVesselMessage`. The lock system
-   acquires the control lock on the vessel change as usual.
-   The removal must not go through `SwitchVesselIfKillingActiveVessel`: the
-   player must not be switched to a neighbour (which would take its lock) or
-   thrown back to the space centre.
+2. **Swap the vessels by reloading the flight scene**, as stock quickload
+   does. Take the current game state (`HighLogic.CurrentGame.Updated()`),
+   drop every family vessel from it, add the snapshot under a fresh vessel
+   id, and call `FlightDriver.StartAndFocusVessel` on the restored vessel.
+   Each family vessel is also removed on the server (kill-listed) and its
+   locks are released. After the reload the existing flight-ready code sends
+   the restored vessel to the server and takes its locks, as for any vessel
+   the player flies. This works after a crash, when there is no active
+   vessel and the saved position is far from the wreck.
 3. **Restore the crew.** Any crew member in the snapshot who is now dead or
    missing is set back to assigned and sent through `KerbalSystem` so the
    server roster matches.
@@ -223,17 +227,8 @@ quicksaved, quickloaded, and one per refusal reason.
 - Career data is left alone. Known consequence: science transmitted or funds
   earned between F5 and F9 are kept.
 
-## Left to the builder
+## Still to be confirmed in the game
 
-- **Check first, against the game:** whether stock calls
-  `QuickSaveLoad.quickLoad` at all while `Flight.CanQuickLoad` is false. If
-  it does not, `QuickLoadSystem` reads the quickload key itself and
-  `CanQuickLoad` stays false, so Alt+F9 and the pause-menu load button remain
-  blocked.
-- Whether the vessel can be swapped in place or the flight scene must be
-  reloaded for a clean physics state. Start with in-place; fall back to a
-  scene reload if the restored vessel misbehaves. Either way the old and the
-  restored vessel must not be loaded at the same spot for a physics frame.
 - How to give the config node a fresh id safely: vessel `pid`, and whether
   vessel/part `persistentId` and part `flightID` values must change too.
 - Whether setting the clock backwards in flight upsets other loaded vessels

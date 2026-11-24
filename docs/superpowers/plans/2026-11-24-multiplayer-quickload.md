@@ -236,7 +236,12 @@ public class QuickLoadSystem : System<QuickLoadSystem>
 
 ## Spike results
 
-(filled in by Task 3)
+**Q1 — answered without the game, by reading the stock `QuickSaveLoad` class (KSP build 03190).**
+
+- With `Flight.CanQuickLoad == false`, stock shows its own "quickload disabled" message on F9 and never calls `quickLoad`. The existing LMP prefix therefore never fires in flight. `QuickLoadSystem` reads `GameSettings.QUICKLOAD` itself, and holds an input lock on `ControlTypes.QUICKLOAD` while the feature is enabled so stock stays silent. `CanQuickLoad` stays `false`.
+- Stock's F5 path is `quickSave(bool saveAs)` → `doSave(string filename, string screenMsg)`. `doSave` only runs when stock accepted the save, and it fires `GameEvents.onGameAboutToQuicksave` first. The snapshot is taken from that event; no Harmony patch is needed for F5.
+
+**Q2–Q4 — not yet answered.** They are checked with the real implementation in the first in-game session instead of with throwaway code (see ledger ruling).
 
 ## Test results
 

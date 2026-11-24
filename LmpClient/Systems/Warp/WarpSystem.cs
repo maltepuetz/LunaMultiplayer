@@ -64,6 +64,12 @@ namespace LmpClient.Systems.Warp
         public bool WaitingSubspaceIdFromServer { get; set; }
         public bool SyncedToLastSubspace { get; set; }
 
+        /// <summary>
+        /// While true we stay in the warping subspace (-1) and do NOT request a new subspace.
+        /// A quickload sets it while the flight scene reloads, so the new subspace is requested with the rewound clock.
+        /// </summary>
+        public bool HoldSubspaceRequest { get; set; }
+
         public List<SubspaceDisplayEntry> SubspaceEntries { get; set; } = new List<SubspaceDisplayEntry>();
 
         #endregion
@@ -87,6 +93,7 @@ namespace LmpClient.Systems.Warp
             SkipSubspaceProcess = false;
             WaitingSubspaceIdFromServer = false;
             SyncedToLastSubspace = false;
+            HoldSubspaceRequest = false;
         }
 
         protected override void OnEnabled()
@@ -128,7 +135,7 @@ namespace LmpClient.Systems.Warp
         /// </summary>
         private void CheckStuckAtWarp()
         {
-            if (CurrentSubspace == -1 && WaitingSubspaceIdFromServer && TimeUtil.IsInInterval(ref _stoppedWarpingTimeStamp, 15000))
+            if (CurrentSubspace == -1 && WaitingSubspaceIdFromServer && !HoldSubspaceRequest && TimeUtil.IsInInterval(ref _stoppedWarpingTimeStamp, 15000))
             {
                 //We've waited for 15 seconds to get a subspace Id and the server didn't assigned one to us so send our subspace again...
                 LunaLog.LogError("Detected stuck at warping! Requesting subspace ID again!");
@@ -144,7 +151,7 @@ namespace LmpClient.Systems.Warp
             //Caution! When you use the "Warp to next morning" button and the warping is about to finish, 
             //the TimeWarp.CurrentRateIndex will be 0 but you will still be warping!! 
             //That's the reason why we check the TimeWarp.CurrentRate aswell!
-            if (TimeWarp.CurrentRateIndex == 0 && Math.Abs(TimeWarp.CurrentRate - 1) < 0.1f && CurrentSubspace == -1 && !WaitingSubspaceIdFromServer)
+            if (TimeWarp.CurrentRateIndex == 0 && Math.Abs(TimeWarp.CurrentRate - 1) < 0.1f && CurrentSubspace == -1 && !WaitingSubspaceIdFromServer && !HoldSubspaceRequest)
             {
                 WarpEvent.onTimeWarpStopped.Fire();
                 RequestNewSubspace();

@@ -48,5 +48,13 @@ namespace LmpCommon.QuickLoad
             if (!known) return FamilyRelation.Outside;
             return unknown ? FamilyRelation.MemberWithOutsideParts : FamilyRelation.Member;
         }
+
+        /// <summary>
+        /// True when two vessels that are coupling are one from the family and one from outside it
+        /// </summary>
+        public static bool IsCoupleWithOutsider(FamilyRelation vesselA, FamilyRelation vesselB)
+        {
+            return (vesselA == FamilyRelation.Outside) != (vesselB == FamilyRelation.Outside);
+        }
     }
 }

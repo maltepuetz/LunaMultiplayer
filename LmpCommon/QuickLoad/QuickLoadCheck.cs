@@ -40,6 +40,14 @@ namespace LmpCommon.QuickLoad
     public static class QuickLoadCheck
     {
         /// <summary>
+        /// True when the reason of a vessel remove message says the vessel was recovered or terminated
+        /// </summary>
+        public static bool IsRecoveryReason(string removeReason)
+        {
+            return removeReason == "Recovered" || removeReason == "Terminated" || removeReason == "Recovered/Terminated";
+        }
+
+        /// <summary>
         /// Returns the first reason why a quickload must be refused, or None when it can go ahead
         /// </summary>
         public static QuickLoadRefusal Decide(QuickLoadState state)

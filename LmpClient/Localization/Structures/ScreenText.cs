@@ -34,6 +34,7 @@
         public string QuickLoadLocked { get; set; } = "Cannot quickload: another player controls part of your vessel";
         public string QuickLoadDocked { get; set; } = "Cannot quickload: your vessel docked with another vessel since the quicksave";
         public string QuickLoadCrewChanged { get; set; } = "Cannot quickload: crew moved to or from another vessel since the quicksave";
+        public string QuickLoadFailed { get; set; } = "Quickload failed. See the log for details";
         public string QuickLoadTooOld { get; set; } = "Cannot quickload: the quicksave is too old for this server";
     }
 }

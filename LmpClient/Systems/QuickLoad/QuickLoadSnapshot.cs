@@ -13,5 +13,9 @@ namespace LmpClient.Systems.QuickLoad
         public Guid VesselId;
         public string[] Crew;
         public QuickLoadFamily Family;
+        /// <summary>
+        /// Set once the vessel, or something that came off it, coupled with a vessel from outside since the quicksave
+        /// </summary>
+        public bool DockedWithOutsider;
     }
 }

@@ -4,7 +4,6 @@ using LmpClient.Localization;
 using LmpClient.Systems.KerbalSys;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
-using LmpClient.Systems.TimeSync;
 using LmpClient.Systems.VesselRemoveSys;
 using LmpClient.Systems.Warp;
 using LmpClient.VesselUtilities;
@@ -33,6 +32,7 @@ namespace LmpClient.Systems.QuickLoad
         private static QuickLoadEvents QuickLoadEvents { get; } = new QuickLoadEvents();
 
         private float _keyDownTime = -1;
+        private bool _quickLoadInProgress;
 
         public QuickLoadSnapshot Snapshot { get; private set; }
 
@@ -55,6 +55,8 @@ namespace LmpClient.Systems.QuickLoad
             GameEvents.onGameAboutToQuicksave.Add(QuickLoadEvents.OnGameAboutToQuicksave);
             RemoveEvent.onLmpRecoveredVessel.Add(QuickLoadEvents.OnVesselRecoveredOrTerminated);
             RemoveEvent.onLmpTerminatedVessel.Add(QuickLoadEvents.OnVesselRecoveredOrTerminated);
+            PartEvent.onPartCoupling.Add(QuickLoadEvents.OnPartCoupling);
+            FlightDriverEvent.onFlightStarted.Add(QuickLoadEvents.OnFlightStarted);
 
             //Stock never calls its quickload while Flight.CanQuickLoad is false, it only shows a "disabled" message.
             //Lock the stock key handling so that message does not show and read the key ourselves.
@@ -68,6 +70,9 @@ namespace LmpClient.Systems.QuickLoad
             GameEvents.onGameAboutToQuicksave.Remove(QuickLoadEvents.OnGameAboutToQuicksave);
             RemoveEvent.onLmpRecoveredVessel.Remove(QuickLoadEvents.OnVesselRecoveredOrTerminated);
             RemoveEvent.onLmpTerminatedVessel.Remove(QuickLoadEvents.OnVesselRecoveredOrTerminated);
+            PartEvent.onPartCoupling.Remove(QuickLoadEvents.OnPartCoupling);
+            FlightDriverEvent.onFlightStarted.Remove(QuickLoadEvents.OnFlightStarted);
+            FinishQuickLoad(false);
             InputLockManager.RemoveControlLock(QuickLoadInputLock);
             _keyDownTime = -1;
             ClearSnapshot();
@@ -82,6 +87,10 @@ namespace LmpClient.Systems.QuickLoad
         /// </summary>
         private void CheckQuickLoadKey()
         {
+            //Safety net: the reload of a quickload ended up in another scene, do not hold the subspace request forever
+            if (_quickLoadInProgress && HighLogic.LoadedSceneIsGame && !HighLogic.LoadedSceneIsFlight)
+                FinishQuickLoad(false);
+
             if (!HighLogic.LoadedSceneIsFlight || GameSettings.MODIFIER_KEY.GetKey())
             {
                 _keyDownTime = -1;
@@ -191,24 +200,52 @@ namespace LmpClient.Systems.QuickLoad
         {
             if (!Enabled || !HighLogic.LoadedSceneIsFlight) return;
 
-            var vessels = FlightGlobals.Vessels.Where(v => v != null && v.state != Vessel.State.DEAD).ToArray();
-            var familyVessels = vessels.Where(v => RelationOf(v) != FamilyRelation.Outside).ToArray();
-
-            var refusal = QuickLoadCheck.Decide(BuildState(vessels, familyVessels));
-            if (refusal != QuickLoadRefusal.None)
-            {
-                Show(RefusalText(refusal));
-                return;
-            }
-
             try
             {
+                var vessels = FlightGlobals.Vessels.Where(v => v != null && v.state != Vessel.State.DEAD).ToArray();
+                var familyVessels = vessels.Where(v => RelationOf(v) != FamilyRelation.Outside).ToArray();
+
+                var refusal = QuickLoadCheck.Decide(BuildState(vessels, familyVessels));
+                if (refusal != QuickLoadRefusal.None)
+                {
+                    Show(RefusalText(refusal));
+                    return;
+                }
+
                 DoQuickLoad(familyVessels);
             }
             catch (Exception e)
             {
                 LunaLog.LogError($"[LMP]: Error while quickloading: {e}");
+                Show(LocalizationContainer.ScreenText.QuickLoadFailed);
             }
+        }
+
+        /// <summary>
+        /// Called when the flight scene reloaded by a quickload has started (or when that reload ended up elsewhere).
+        /// From here on the warp system requests our new subspace, using the clock that the reload has rewound.
+        /// </summary>
+        public void FinishQuickLoad(bool flightStarted)
+        {
+            if (!_quickLoadInProgress) return;
+
+            _quickLoadInProgress = false;
+            WarpSystem.Singleton.HoldSubspaceRequest = false;
+
+            if (flightStarted)
+                Show(LocalizationContainer.ScreenText.QuickLoaded);
+        }
+
+        /// <summary>
+        /// Another player removed a vessel. If it was recovered or terminated and it belongs to our quicksaved vessel,
+        /// the quicksave must not bring it back.
+        /// </summary>
+        public void OnRemoteVesselRemove(Guid vesselId, string reason)
+        {
+            if (Snapshot == null || !QuickLoadCheck.IsRecoveryReason(reason)) return;
+
+            if (RelationOf(FlightGlobals.FindVessel(vesselId)) != FamilyRelation.Outside)
+                ClearSnapshot();
         }
 
         #endregion
@@ -220,60 +257,75 @@ namespace LmpClient.Systems.QuickLoad
             var snapshot = Snapshot;
             LunaLog.Log($"[LMP]: Quickloading vessel {snapshot.VesselId}. Going from {Planetarium.GetUniversalTime()} back to {snapshot.GameTime}");
 
-            //1. Rewind our own clock. With subspace -1 the time sync leaves the clock alone, and the warp system
-            //requests a new subspace on its own (WarpSystem.CheckWarpStopped) using the clock we just set.
-            TimeSyncSystem.Singleton.SetGameTime(snapshot.GameTime);
-            WarpSystem.Singleton.CurrentSubspace = -1;
+            //--- First everything that can fail. Nothing below, up to the next marker, is seen by the server or other players ---
 
-            //2. Take the current state of the game, with the clock already rewound, and drop from it our vessel
-            //and everything that came off it since the quicksave
+            //Take the current state of the game
             var game = HighLogic.CurrentGame.Updated();
-            game.flightState.universalTime = snapshot.GameTime;
 
-            var familyIds = new HashSet<Guid>(familyVessels.Select(v => v.id));
-            game.flightState.protoVessels.RemoveAll(pv => pv == null || familyIds.Contains(pv.vesselID));
-
-            foreach (var vessel in familyVessels)
+            if (snapshot.Crew.Any(c => game.CrewRoster[c] == null))
             {
-                VesselRemoveSystem.Singleton.MessageSender.SendVesselRemove(vessel.id, true, "Quickload");
-                VesselRemoveSystem.Singleton.RemovedVessels.TryAdd(vessel.id, LunaNetworkTime.UtcNow);
-                VesselCommon.RemoveVesselFromSystems(vessel.id);
-                LockSystem.Singleton.ReleaseAllVesselLocks(null, vessel.id);
+                LunaLog.LogWarning("[LMP]: Quickload refused: a kerbal of the quicksaved vessel is not in the roster anymore");
+                Show(LocalizationContainer.ScreenText.QuickLoadCrewChanged);
+                return;
             }
 
-            //3. Bring back the crew that died or went missing since the quicksave
-            foreach (var crewName in snapshot.Crew)
-            {
-                var crewMember = game.CrewRoster[crewName];
-                if (crewMember == null)
-                {
-                    LunaLog.LogWarning($"[LMP]: Quickload: kerbal {crewName} is not in the roster anymore and can't be restored");
-                    continue;
-                }
+            //Bring back the crew that died or went missing since the quicksave
+            var revivedCrew = snapshot.Crew.Select(c => game.CrewRoster[c])
+                .Where(c => c.rosterStatus != ProtoCrewMember.RosterStatus.Assigned)
+                .Select(c => new KeyValuePair<ProtoCrewMember, ProtoCrewMember.RosterStatus>(c, c.rosterStatus)).ToArray();
 
-                if (crewMember.rosterStatus != ProtoCrewMember.RosterStatus.Assigned)
-                {
-                    crewMember.rosterStatus = ProtoCrewMember.RosterStatus.Assigned;
-                    KerbalSystem.Singleton.MessageSender.SendKerbal(crewMember);
-                }
-            }
+            foreach (var crew in revivedCrew)
+                crew.Key.rosterStatus = ProtoCrewMember.RosterStatus.Assigned;
 
-            //4. Add the quicksaved vessel under a NEW vessel id. The old id may be in the server kill list, and late
+            //The quicksaved vessel comes back under a NEW vessel id. The old id may be in the server kill list, and late
             //updates that are still travelling for the old vessel must not be applied to the restored one.
             var newVesselId = Guid.NewGuid();
-            var node = snapshot.VesselNode.CreateCopy();
-            node.SetValue("pid", newVesselId.ToString("N"), true);
+            ProtoVessel protoVessel;
+            try
+            {
+                var node = snapshot.VesselNode.CreateCopy();
+                node.SetValue("pid", newVesselId.ToString("N"), true);
+                protoVessel = new ProtoVessel(node, game);
+            }
+            catch (Exception)
+            {
+                foreach (var crew in revivedCrew)
+                    crew.Key.rosterStatus = crew.Value;
+                throw;
+            }
 
-            var protoVessel = new ProtoVessel(node, game);
+            //--- From here on there is no way back ---
+
+            //Leave our subspace but hold the request for a new one until the flight scene has reloaded.
+            //The reload sets the clock to the quicksave time and only then we must tell the server where we are.
+            _quickLoadInProgress = true;
+            WarpSystem.Singleton.HoldSubspaceRequest = true;
+            WarpSystem.Singleton.CurrentSubspace = -1;
+
+            //Remove our vessel and everything that came off it since the quicksave, for us and for everybody else
+            var familyIds = new HashSet<Guid>(familyVessels.Select(v => v.id));
+            foreach (var vesselId in familyIds)
+            {
+                VesselRemoveSystem.Singleton.MessageSender.SendVesselRemove(vesselId, true, "Quickload");
+                VesselRemoveSystem.Singleton.RemovedVessels.TryAdd(vesselId, LunaNetworkTime.UtcNow);
+                VesselCommon.RemoveVesselFromSystems(vesselId);
+                //Release the locks a bit later so the remove message gets to the other players first
+                LockSystem.Singleton.ReleaseAllVesselLocks(null, vesselId, 1f);
+            }
+
+            foreach (var crew in revivedCrew)
+                KerbalSystem.Singleton.MessageSender.SendKerbal(crew.Key);
+
+            game.flightState.protoVessels.RemoveAll(pv => pv == null || familyIds.Contains(pv.vesselID));
+            game.flightState.universalTime = snapshot.GameTime;
             game.flightState.protoVessels.Add(protoVessel);
-            var vesselIndex = game.flightState.protoVessels.Count - 1;
 
             snapshot.VesselId = newVesselId;
+            snapshot.DockedWithOutsider = false;
 
-            //5. Reload the flight scene focused on the restored vessel, the same way stock does after a quickload.
+            //Reload the flight scene focused on the restored vessel, the same way stock does after a quickload.
             //Once the flight is ready the vessel is sent to the server and we take its locks, as with any vessel we fly.
-            Show(LocalizationContainer.ScreenText.QuickLoaded);
-            FlightDriver.StartAndFocusVessel(game, vesselIndex);
+            FlightDriver.StartAndFocusVessel(game, game.flightState.protoVessels.Count - 1);
         }
 
         private QuickLoadState BuildState(Vessel[] vessels, Vessel[] familyVessels)
@@ -286,11 +338,11 @@ namespace LmpClient.Systems.QuickLoad
                 FeatureEnabled = FeatureEnabled,
                 HasSnapshot = Snapshot != null,
                 Spectating = VesselCommon.IsSpectating,
-                Warping = WarpSystem.Singleton.CurrentlyWarping || TimeWarp.CurrentRateIndex > 0,
+                Warping = _quickLoadInProgress || WarpSystem.Singleton.CurrentlyWarping || TimeWarp.CurrentRateIndex > 0,
                 WaitingSubspaceId = WarpSystem.Singleton.WaitingSubspaceIdFromServer,
                 FamilyVesselLockedByOther = familyVessels.Any(v => LockSystem.LockQuery.ControlLockExists(v.id) &&
                                                                    !LockSystem.LockQuery.ControlLockBelongsToPlayer(v.id, playerName)),
-                DockedWithOutsider = familyVessels.Any(v => RelationOf(v) == FamilyRelation.MemberWithOutsideParts),
+                DockedWithOutsider = (Snapshot?.DockedWithOutsider ?? false) || familyVessels.Any(v => RelationOf(v) == FamilyRelation.MemberWithOutsideParts),
                 SnapshotCrew = Snapshot?.Crew,
                 CrewAboardFamily = familyVessels.SelectMany(CrewNamesOf).ToArray(),
                 CrewAboardOtherVessels = vessels.Where(v => !familyIds.Contains(v.id)).SelectMany(CrewNamesOf).ToArray(),

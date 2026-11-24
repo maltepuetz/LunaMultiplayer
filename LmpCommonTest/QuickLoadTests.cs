@@ -65,6 +65,38 @@ namespace LmpCommonTest
             Assert.AreEqual(FamilyRelation.Outside, Family().Classify(new uint[] { 50 }, "Val"));
         }
 
+        [TestMethod]
+        public void Couple_MemberWithOutsider_IsCoupleWithOutsider()
+        {
+            Assert.IsTrue(QuickLoadFamily.IsCoupleWithOutsider(FamilyRelation.Member, FamilyRelation.Outside));
+            Assert.IsTrue(QuickLoadFamily.IsCoupleWithOutsider(FamilyRelation.Outside, FamilyRelation.MemberWithOutsideParts));
+        }
+
+        [TestMethod]
+        public void Couple_TwoMembersOrTwoOutsiders_IsNotCoupleWithOutsider()
+        {
+            Assert.IsFalse(QuickLoadFamily.IsCoupleWithOutsider(FamilyRelation.Member, FamilyRelation.Member));
+            Assert.IsFalse(QuickLoadFamily.IsCoupleWithOutsider(FamilyRelation.Outside, FamilyRelation.Outside));
+        }
+
+        [TestMethod]
+        public void RecoveryReasons_AreRecognised()
+        {
+            Assert.IsTrue(QuickLoadCheck.IsRecoveryReason("Recovered"));
+            Assert.IsTrue(QuickLoadCheck.IsRecoveryReason("Terminated"));
+            Assert.IsTrue(QuickLoadCheck.IsRecoveryReason("Recovered/Terminated"));
+        }
+
+        [TestMethod]
+        public void OtherRemoveReasons_AreNotRecovery()
+        {
+            Assert.IsFalse(QuickLoadCheck.IsRecoveryReason(null));
+            Assert.IsFalse(QuickLoadCheck.IsRecoveryReason(""));
+            Assert.IsFalse(QuickLoadCheck.IsRecoveryReason("Destroyed"));
+            Assert.IsFalse(QuickLoadCheck.IsRecoveryReason("Quickload"));
+            Assert.IsFalse(QuickLoadCheck.IsRecoveryReason("Revert to Launch"));
+        }
+
         #endregion
 
         #region Decide

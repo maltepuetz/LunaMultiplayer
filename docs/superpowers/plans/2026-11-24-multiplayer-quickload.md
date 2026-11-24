@@ -245,4 +245,17 @@ public class QuickLoadSystem : System<QuickLoadSystem>
 
 ## Test results
 
-(filled in by Task 7)
+Not run yet. Unit tests: LmpCommonTest 34 passed / 1 skipped, ServerTest 27 passed. The client builds but has never run in the game.
+
+| # | Check (two clients, `AllowQuickLoad` on) | Result |
+|---|---|---|
+| 1 | Orbit: F5, burn, hold F9. Orbit, fuel and game time match the save; the other client sees one vessel | |
+| 2 | Landing: F5 in low orbit, stage, crash, hold F9 with the crash dialog open. Vessel and crew are back, new debris is gone, debris from before F5 is still there | |
+| 3 | Docking: F5 about 100 m from an uncontrolled target, miss, hold F9. Target is at the same relative position | |
+| 4 | After F9 the status window shows you in an earlier subspace; the sync button brings you back | |
+| 5 | Refusals: no quicksave; spectating; F5 on EVA; vessel recovered; docked then undocked; kerbal moved to another vessel; quicksave older than the limit; reconnect then F9 | |
+| 6 | F9 twice in a row, and F9 held again during the loading screen | |
+| 7 | `AllowQuickLoad` off: F9 shows the stock "disabled" text and warp-stops behave as before | |
+| 8 | F5 about 10 s before touchdown, then F9: vessel is not past its impact point after loading | |
+| 9 | F9 while another player spectates your vessel | |
+| 10 | F9 after using docking mode (stock UI) | |
